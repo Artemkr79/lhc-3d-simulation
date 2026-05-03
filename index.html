@@ -2,9 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>LHC Pro: Ultimate 3D Edition</title>
-    <link rel="stylesheet" href="style.css">
-    
+    <title>SuperKEKB 3D Simulator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
@@ -13,38 +11,245 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #020305; color: white; font-family: 'Consolas', monospace; user-select: none; }
+        
+        /* Главная панель управления и калькулятор */
+        #hud { position: absolute; top: 20px; left: 20px; background: rgba(5, 10, 15, 0.85); padding: 20px; border-radius: 10px; border: 1px solid #102040; box-shadow: 0 0 30px rgba(0, 255, 200, 0.15); z-index: 10; pointer-events: auto; width: 320px;}
+        #hud h1 { margin: 0 0 15px 0; font-size: 20px; color: #00ffcc; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 10px #00ffcc;}
+        
+        .section-title { font-size: 14px; color: #7080a0; border-bottom: 1px solid #102040; padding-bottom: 5px; margin: 15px 0 10px 0; letter-spacing: 1px;}
+        
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 12px; color: #8090a0; margin-bottom: 5px; }
+        .input-group input[type="number"] { width: 100%; background: #0a101a; border: 1px solid #00ffcc; color: #fff; padding: 5px; font-family: 'Consolas', monospace; font-size: 14px; outline: none; border-radius: 4px;}
+        
+        /* Табло результатов */
+        .stats-box { background: rgba(0, 0, 0, 0.5); padding: 10px; border-radius: 6px; margin-top: 15px; border: 1px solid #203050; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .stat-label { color: #8090a0; }
+        .stat-val-n0 { color: #00ffcc; font-weight: bold; }
+        .stat-val-rem { color: #00ff00; font-weight: bold; }
+        .stat-val-dec { color: #ff0055; font-weight: bold; }
+
+        /* Легенда */
+        #legend { position: absolute; top: 20px; right: 20px; background: rgba(5, 10, 15, 0.85); padding: 15px; border-radius: 10px; border: 1px solid #102040; z-index: 10; pointer-events: none; }
+        .legend-item { display: flex; align-items: center; font-size: 13px; color: #b0c0e0; margin-bottom: 10px; }
+        .color-box { width: 12px; height: 12px; border-radius: 50%; margin-right: 12px; display: inline-block; }
+
+        #crosshair { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,0.3); pointer-events: none; }
+    </style>
 </head>
 <body>
     <div id="hud">
-        <h1>CERN Terminal</h1>
-        <div class="stat">Энергия: <span id="val-energy">7.0</span> TeV</div>
-        <div class="stat">Сгустков: <span id="val-bunches">4</span></div>
-        <div class="stat">Событий: <span id="val-collisions" style="color: #ffaa00;">0</span></div>
+        <h1>Детектор Belle II</h1>
         
-        <div class="controls">
-            <label>ЭНЕРГИЯ ПУЧКА</label>
-            <input type="range" id="slider-energy" min="1" max="14" step="0.5" value="7">
-            <label>ПЛОТНОСТЬ ПУЧКА</label>
-            <input type="range" id="slider-bunches" min="1" max="10" step="1" value="4">
+        <div class="section-title">КАЛЬКУЛЯТОР РАСПАДА</div>
+        <div class="input-group">
+            <label>Сгенерировано частиц (N₀):</label>
+            <input type="number" id="inp-mesons" value="1000000" min="100">
         </div>
+        <div class="input-group">
+            <label>Время наблюдения (t):</label>
+            <input type="number" id="inp-time" value="3.0" step="0.1" min="0">
+        </div>
+
+        <div class="stats-box">
+            <div class="stat-row">
+                <span class="stat-label">ДО РАСПАДА:</span>
+                <span id="out-n0" class="stat-val-n0">1 000 000</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">ОСТАЛОСЬ:</span>
+                <span id="out-rem" class="stat-val-rem">259 240 (25.9%)</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">РАСПАЛОСЬ:</span>
+                <span id="out-dec" class="stat-val-dec">740 760 (74.1%)</span>
+            </div>
+        </div>
+        <div style="font-size: 10px; color: #506070; margin-top: 10px; text-align: right;">Формула: N = N₀ * e^(-λt)</div>
     </div>
 
     <div id="legend">
-        <h3>МАРКИРОВКА СИСТЕМЫ</h3>
-        <div class="legend-item"><span class="color-box" style="background: #ffff00; box-shadow: 0 0 8px #ffff00;"></span> Пучок A (По часовой)</div>
-        <div class="legend-item"><span class="color-box" style="background: #00ffff; box-shadow: 0 0 8px #00ffff;"></span> Пучок B (Против часовой)</div>
-        <div class="legend-item"><span class="color-box" style="background: #ffffff; box-shadow: 0 0 8px #ffffff;"></span> Продукты распада</div>
+        <div class="section-title" style="margin-top: 0;">МАРКИРОВКА</div>
+        <div class="legend-item"><span class="color-box" style="background: #0088ff; box-shadow: 0 0 8px #0088ff;"></span> Электроны (e⁻)</div>
+        <div class="legend-item"><span class="color-box" style="background: #ff0044; box-shadow: 0 0 8px #ff0044;"></span> Позитроны (e⁺)</div>
+        <div class="legend-item"><span class="color-box" style="background: #ffffff; box-shadow: 0 0 8px #ffffff;"></span> B-мезоны (Осколки)</div>
     </div>
 
-    <div id="info-panel">
-        <h2 id="info-title">Детектор</h2>
-        <p id="info-desc">Описание</p>
-    </div>
+    <div id="crosshair">Вращать: ЛКМ | Зум: Колесико мыши</div>
 
-    <div id="labels-container"></div>
+    <script>
+        // --- 1. ИНИЦИАЛИЗАЦИЯ 3D СЦЕНЫ ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x020305, 0.003);
 
-    <div id="crosshair">ЛКМ - вращать | Колесико - зум | Клик на станцию - инфо</div>
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 120, 250);
 
-    <script src="app.js"></script>
+        const renderer = new THREE.WebGLRenderer({ antialias: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // --- 2. НЕОНОВЫЙ ЭФФЕКТ (BLOOM) ---
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.1; bloomPass.strength = 2.0; bloomPass.radius = 0.8;    
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene); composer.addPass(bloomPass);
+
+        // --- 3. КОЛЬЦО КОЛЛАЙДЕРА ---
+        const RADIUS = 100;
+        const ringGeo = new THREE.TorusGeometry(RADIUS, 2, 16, 100);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x0a1530, wireframe: true, transparent: true, opacity: 0.3 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        scene.add(ring);
+
+        // --- 4. ДЕТЕКТОР В ЦЕНТРЕ (Belle II) ---
+        const detectorGeo = new THREE.CylinderGeometry(15, 15, 40, 16);
+        const detectorMat = new THREE.MeshBasicMaterial({ color: 0x223355, wireframe: true });
+        const detector = new THREE.Mesh(detectorGeo, detectorMat);
+        detector.rotation.x = Math.PI / 2;
+        detector.position.set(RADIUS, 0, 0); // Точка столкновения
+        scene.add(detector);
+
+        // --- 5. ЧАСТИЦЫ ---
+        const matE = new THREE.MeshBasicMaterial({ color: 0x0088ff }); // Электрон
+        const matP = new THREE.MeshBasicMaterial({ color: 0xff0044 }); // Позитрон
+        const pGeo = new THREE.SphereGeometry(2, 16, 16);
+        
+        const electron = new THREE.Mesh(pGeo, matE);
+        const positron = new THREE.Mesh(pGeo, matP);
+        scene.add(electron); scene.add(positron);
+
+        // --- 6. СИСТЕМА ВЗРЫВОВ (B-Мезоны) ---
+        const explosionParticles = [];
+        const expGeo = new THREE.BufferGeometry();
+        const expCount = 5000; // Максимальный лимит для браузера
+        const posArray = new Float32Array(expCount * 3);
+        const colorArray = new Float32Array(expCount * 3);
+        expGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        expGeo.setAttribute('color', new THREE.BufferAttribute(colorArray, 3));
+
+        const expMat = new THREE.PointsMaterial({
+            size: 1.5, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
+        });
+        const expSystem = new THREE.Points(expGeo, expMat);
+        scene.add(expSystem);
+
+        // --- 7. ЛОГИКА КАЛЬКУЛЯТОРА И ФИЗИКИ ---
+        const DECAY_CONSTANT = 0.45; // Постоянная распада (λ)
+        let visualDecayRate = 0.02; // Скорость затухания визуальных частиц
+
+        function updateCalculator() {
+            let n0 = parseInt(document.getElementById('inp-mesons').value) || 0;
+            let t = parseFloat(document.getElementById('inp-time').value) || 0;
+            
+            // Физическая формула
+            let remainingFrac = Math.exp(-DECAY_CONSTANT * t);
+            let nRemaining = n0 * remainingFrac;
+            let nDecayed = n0 - nRemaining;
+
+            // Обновляем текст в табло
+            document.getElementById('out-n0').innerText = n0.toLocaleString('ru-RU');
+            document.getElementById('out-rem').innerText = Math.floor(nRemaining).toLocaleString('ru-RU') + ` (${(remainingFrac*100).toFixed(1)}%)`;
+            document.getElementById('out-dec').innerText = Math.floor(nDecayed).toLocaleString('ru-RU') + ` (${((1-remainingFrac)*100).toFixed(1)}%)`;
+
+            // Синхронизируем визуальную скорость исчезновения частиц с введенным временем
+            // Чем больше время t, тем быстрее частицы должны исчезать на экране
+            visualDecayRate = 0.01 + (t * 0.005);
+        }
+
+        // Слушатели изменения цифр в полях
+        document.getElementById('inp-mesons').addEventListener('input', updateCalculator);
+        document.getElementById('inp-time').addEventListener('input', updateCalculator);
+        updateCalculator(); // Первый запуск
+
+        // Функция генерации взрыва
+        function triggerCollision(x, z) {
+            let n0 = parseInt(document.getElementById('inp-mesons').value) || 1000;
+            // Визуально ограничиваем количество искр (от 50 до 3000), чтобы не завис браузер
+            let sparkCount = Math.min(Math.max(n0 / 500, 50), 3000); 
+
+            for(let i=0; i<sparkCount; i++) {
+                explosionParticles.push({
+                    x: x, y: 0, z: z,
+                    vx: (Math.random() - 0.5) * 3,
+                    vy: (Math.random() - 0.5) * 3,
+                    vz: (Math.random() - 0.5) * 3,
+                    life: 1.0, // Жизнь частицы от 1 до 0
+                    color: new THREE.Color().setHSL(Math.random() * 0.2 + 0.5, 1, 0.8) // Оттенки сине-фиолетового
+                });
+            }
+        }
+
+        // --- 8. ГЛАВНЫЙ ЦИКЛ АНИМАЦИИ ---
+        let angle = 0;
+        const speed = 0.03;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Движение электрона и позитрона
+            angle += speed;
+            let currentAngle = angle % (Math.PI * 2);
+            
+            electron.position.set(RADIUS * Math.cos(currentAngle), 0, RADIUS * Math.sin(currentAngle));
+            positron.position.set(RADIUS * Math.cos(-currentAngle), 0, RADIUS * Math.sin(-currentAngle));
+
+            // Проверка столкновения в координате X = RADIUS (где стоит детектор)
+            let dist = electron.position.distanceTo(positron.position);
+            if (dist < speed * RADIUS && electron.position.x > RADIUS - 5) {
+                triggerCollision(electron.position.x, electron.position.z);
+            }
+
+            // Обновление частиц взрыва (B-мезонов)
+            let positions = expSystem.geometry.attributes.position.array;
+            let colors = expSystem.geometry.attributes.color.array;
+            let index = 0;
+
+            for(let i = explosionParticles.length - 1; i >= 0; i--) {
+                let p = explosionParticles[i];
+                p.x += p.vx; p.y += p.vy; p.z += p.vz;
+                
+                // Жизнь частицы уменьшается (распад). Зависит от введенного времени t!
+                p.life -= visualDecayRate; 
+
+                if (p.life <= 0) {
+                    explosionParticles.splice(i, 1); // Удаляем распавшуюся частицу
+                } else {
+                    positions[index*3] = p.x; positions[index*3+1] = p.y; positions[index*3+2] = p.z;
+                    colors[index*3] = p.color.r * p.life; colors[index*3+1] = p.color.g * p.life; colors[index*3+2] = p.color.b * p.life;
+                    index++;
+                }
+            }
+            
+            // Зачистка неиспользуемых элементов массива
+            for(let i = index; i < expCount; i++) {
+                positions[i*3] = positions[i*3+1] = positions[i*3+2] = 0;
+            }
+            expSystem.geometry.attributes.position.needsUpdate = true;
+            expSystem.geometry.attributes.color.needsUpdate = true;
+
+            controls.update();
+            composer.render();
+        }
+
+        // Адаптация под размер окна
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
 </body>
 </html>
